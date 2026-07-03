@@ -41,7 +41,7 @@ class PyOZ:
         elif self.closure == 'MSA':
             b_r = torch.log1p(gamma) - gamma
             c_r = torch.exp(-beta_u + gamma + b_r) - gamma - 1
-            c_r[r > self.params[0]] = -beta_u[r > self.params[0]]  # c(r) = -beta*u(r) for r > sigma
+            c_r[beta_u < float('inf')] = -beta_u[beta_u < float('inf')]  # c(r) = -beta*u(r) for r > sigma
         else:  # not implemented
             raise NotImplementedError(f"Closure '{self.closure}' is not implemented.")
         return c_r
