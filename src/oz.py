@@ -35,7 +35,7 @@ class PyOZ:
             b_r = 0.0
         return torch.exp(-beta_u + gamma + b_r) - gamma - 1
 
-    def solve(self, rho: float, kBT: float = 1.0, rmax: float = 5.0, dr: float = 0.01, max_iter: int = 1000, method: str = 'Anderson', mix_depth: int = 5, alpha: float = 0.6, atol: float = 1e-6, logoutput: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+    def solve(self, rho: float, kBT: float = 1.0, rmax: float = 5.0, dr: float = 0.01, max_iter: int = 1000, method: str = 'Anderson', mix_depth: int = 5, alpha: float = 0.6, atol: float = 1e-8, logoutput: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Solve the Ornstein-Zernike equation for a given radial grid r.
         Returns (r, h_r, c_r).

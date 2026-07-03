@@ -26,7 +26,7 @@ Notebook: [HardSpheres.ipynb](https://github.com/elvissoares/PyOZ/blob/main/exam
 
 |![Figure1](https://github.com/elvissoares/PyOZ/blob/main/examples/radialdistributionfunction-hardspheres.png)|![Figure2](https://github.com/elvissoares/PyOZ/blob/main/examples/contactvalue-rdf-hardspheres.png)|
 |:--:|:--:|
-| <b>Fig.1 - The radial distribution function of a pure hard-sphere fluid for three different densities. The symbols represent MC data. </b>| <b>Fig.2 - The contact value of the radial distribution function of a pure hard-sphere fluid as a function of the bulk density. The symbols represent MC data. </b>|
+| <b>Fig.1 - The radial distribution function of a pure hard-sphere fluid for three different densities. The symbols represent MC data from Barker 1971. </b>| <b>Fig.2 - The contact value of the radial distribution function of a pure hard-sphere fluid as a function of the bulk density. The symbols represent MC data from Barker 1971. </b>|
 
 ## Lennard-Jones Fluids 
 
