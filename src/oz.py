@@ -4,9 +4,13 @@ from optimizer import AndersonMix, PicardMix
 from typing import Tuple
 import torch
 
+def uhs(r,params):
+    sigma = params
+    return torch.where(r <= sigma, torch.tensor(float('inf')), torch.tensor(0.0))
+
 
 class PyOZ:
-    def __init__(self, u: callable, params: np.ndarray, closure: str = 'PY', device = 'cpu', dtype = torch.float64):
+    def __init__(self, u: callable, params: np.ndarray, closure: str = 'HNC', device = 'cpu', dtype = torch.float64):
         """
         u      : pair potential function u(r, params)
         params : parameters for u
@@ -14,7 +18,7 @@ class PyOZ:
         self.u = u
         self.params = params
         
-        # closure: 'PY' or 'HNC'
+        # closure: 'PY', 'HNC', 'MSA'
         self.closure = closure
         # device for torch tensors
         self.device = device
@@ -22,8 +26,8 @@ class PyOZ:
 
 
     def set_closure(self, closure: str = 'PY'):
-        if closure not in ('PY', 'HNC'):
-            raise ValueError("Closure must be 'PY' or 'HNC'")
+        if closure not in ('PY', 'HNC', 'MSA'):
+            raise ValueError("Closure must be 'PY', 'HNC', or 'MSA'")
         self.closure = closure
 
     def _closure_relation(self, gamma: torch.Tensor, r: torch.Tensor) -> torch.Tensor:
@@ -31,11 +35,18 @@ class PyOZ:
         beta_u = self.u(r, self.params) / self.kBT
         if self.closure == 'PY':
             b_r = torch.log1p(gamma) - gamma
-        else:  # HNC
-            b_r = 0.0
-        return torch.exp(-beta_u + gamma + b_r) - gamma - 1
+            c_r = torch.exp(-beta_u + gamma + b_r) - gamma - 1
+        elif self.closure == 'HNC':
+            c_r = torch.exp(-beta_u + gamma) - gamma - 1
+        elif self.closure == 'MSA':
+            b_r = torch.log1p(gamma) - gamma
+            c_r = torch.exp(-beta_u + gamma + b_r) - gamma - 1
+            c_r[r > self.params[0]] = -beta_u[r > self.params[0]]  # c(r) = -beta*u(r) for r > sigma
+        else:  # not implemented
+            raise NotImplementedError(f"Closure '{self.closure}' is not implemented.")
+        return c_r
 
-    def solve(self, rho: float, kBT: float = 1.0, rmax: float = 5.0, dr: float = 0.01, max_iter: int = 1000, method: str = 'Anderson', mix_depth: int = 5, alpha: float = 0.6, atol: float = 1e-6, logoutput: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+    def solve(self, rho: float, kBT: float = 1.0, rmax: float = 10.0, dr: float = 0.01, max_iter: int = 1000, method: str = 'Anderson', mix_depth: int = 5, alpha: float = 0.6, atol: float = 1e-6, logoutput: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Solve the Ornstein-Zernike equation for a given radial grid r.
         Returns (r, h_r, c_r).
@@ -71,6 +82,10 @@ class PyOZ:
             gamma_k = self.rho * c_k * c_k  * denominator
             # back to r-space
             gamma_new = hankel_inverse(gamma_k, r, k, dk)  # inverse DST-I normalization
+             # avoid negative values in g(r)
+            c_r[:] = self._closure_relation(gamma_new, r)
+            h_r[:] = gamma_new + c_r[:]
+            gamma_new[:] = torch.clamp(h_r, min=-1.0) - c_r
 
             # testing convergence
             residue = (gamma_new - gamma_r)*r

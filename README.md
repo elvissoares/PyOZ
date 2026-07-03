@@ -14,7 +14,7 @@ $$c(r) = e^{-\beta u(r)+\gamma(r)+b(r)}-\gamma(r)-1$$
 and $b(r)$ is the bridge-function. The following closure relations gives different bridge functions:
 - [x] **P**ercus-**Y**evick (**PY**) - $b(r) = \log(1+\gamma(r))-\gamma(r)$
 - [x] **H**iper**N**etted **C**hain (**HNC**) - $b(r) = 0$
-- [ ] **M**ean-**S**pherical **A**pproximation (**MSA**) - 
+- [x] **M**ean-**S**pherical **A**pproximation (**MSA**) - $c(r) = -\beta u(r), r> \sigma$
 
 # Examples
 
@@ -35,6 +35,10 @@ Notebook: [LennardJones.ipynb](https://github.com/elvissoares/PyOZ/blob/main/exa
 |![Figure3](https://github.com/elvissoares/PyOZ/blob/main/examples/radialdistributionfunction-argon-lennardjones.png)|
 | <b>Fig.3 - The radial distribution function of Argon fluid at triple point density and temperature. The symbols represent MD data from Verlet 1968. </b>|
 |:--:|
+
+## Yukawa fluids
+
+Notebook: [Yukawa.ipynb](https://github.com/elvissoares/PyOZ/blob/main/examples/Yukawa.ipynb)
 
 # References
 [^1]: Hansen, Jean-Pierre, and Ian Ranald McDonald. *Theory of simple liquids: with applications to soft matter.* Academic press, 2013.
