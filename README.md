@@ -1,5 +1,5 @@
 # PyOZ
-A python implementation of a solver to the Ornstein–Zernike equation
+A python implementation of a solver to the Ornstein–Zernike equation using Pytorch. 
 
 In the integral theory of fluid [^1], the Ornstein–Zernike equation [^2] connects the radial distribution function with the direct correlation function through that 
 
@@ -24,6 +24,14 @@ On the folder 'examples' you can find different applications of the OZ solver.
 |![Figure1](https://github.com/elvissoares/PyOZ/blob/main/examples/radialdistributionfunction-hardspheres.png)|![Figure2](https://github.com/elvissoares/PyOZ/blob/main/examples/contactvalue-rdf-hardspheres.png)|
 |:--:|:--:|
 | <b>Fig.1 - The radial distribution function of a pure hard-sphere fluid for three different densities. The symbols represent MC data. </b>| <b>Fig.2 - The contact value of the radial distribution function of a pure hard-sphere fluid as a function of the bulk density. The symbols represent MC data. </b>|
+
+## Lennard-Jones Fluids 
+
+Notebook: [LennardJones.ipynb](https://github.com/elvissoares/PyOZ/blob/main/examples/LennardJones.ipynb)
+
+|![Figure3](https://github.com/elvissoares/PyOZ/blob/main/examples/radialdistributionfunction-argon-lennardjones.png)|
+| <b>Fig.3 - The radial distribution function of Argon fluid at triple point density and temperature. The symbols represent MD data from Verlet 1968. </b>|
+|:--:|
 
 # References
 [^1]: Hansen, Jean-Pierre, and Ian Ranald McDonald. *Theory of simple liquids: with applications to soft matter.* Academic press, 2013.
