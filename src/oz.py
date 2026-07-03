@@ -1,66 +1,89 @@
 import numpy as np
-from scipy.fftpack import dst, idst
+from hankel import hankel_forward, hankel_inverse
+from optimizer import AndersonMix, PicardMix
+from typing import Tuple
+import torch
 
-def uhs(r,sigma):
-    return np.piecewise(r,[r<=sigma,r>sigma],[np.inf,0.0])
 
-def closure_relation(beta,u,gamma,model='PY'):
-    if model == 'PY':
-        b_r = np.log(1+gamma)-gamma
-    elif model == 'HNC':
-        b_r = 0.0
-    return np.exp(-beta*u+gamma+b_r)-gamma-1
+class PyOZ:
+    def __init__(self, u: callable, params: np.ndarray, closure: str = 'PY', device = 'cpu', dtype = torch.float64):
+        """
+        u      : pair potential function u(r, params)
+        params : parameters for u
+        """
+        self.u = u
+        self.params = params
+        
+        # closure: 'PY' or 'HNC'
+        self.closure = closure
+        # device for torch tensors
+        self.device = device
+        self.dtype = dtype
 
-def PyOZ(r,rho,kBT,u=uhs,params=1.0,model='PY'):
-    alpha = 0.001
-    finc = 1.1
-    fdec = 0.5
-    atol = 1.e-5
-    max_iter = 9999
-    n_iter = 0
-    # Fourier variables
-    n_pts = r.size
-    dr = r[1]-r[0]
-    dk = np.pi/(n_pts*dr)
-    k = np.arange(0,n_pts * dk, dk)+0.5*dk
-    # Calculate c(r)
-    c_r = np.empty_like(r)
-    gamma_r = np.zeros_like(r)
-    c_k = np.empty_like(r)
-    gamma_k = np.empty_like(r)
-    gamma_r_old = np.empty_like(r)
-    errorlast = np.inf
-    while n_iter < max_iter:
-        n_iter +=1
-        # Using closure relation
-        c_r[:] = closure_relation(1.0/kBT,u(r,params),gamma_r,model)
-        # First, make the FT of c(r)
-        constant = 2 * np.pi * dr / k
-        transform = dst( c_r * r, type=1)
-        c_k[:] = constant * transform
-        gamma_r_old[:] = gamma_r
-        # Calculate gamma(k)
-        gamma_k[:] = rho*c_k**2/(1 - rho*c_k)
-        # Calculate IFT of gamma(k)
-        constant = n_pts * dk / (4 * np.pi**2 * (n_pts + 1) * r)
-        transform = idst(gamma_k * k, type=1)
-        gamma_r[:] = constant * transform
-        # Calculate the error
-        error = np.linalg.norm(gamma_r-gamma_r_old)
-        #updating alpha value
-        if errorlast > error:  alpha = min(0.9,alpha*finc)
-        else: alpha = max(1.0e-3,alpha*fdec)
-        if error < atol:
-            break
-        gamma_r[:] = (1-alpha)*gamma_r_old + alpha*gamma_r
-        errorlast = error
-    # return the g_r and the c_r
-    return [gamma_r+c_r+1,c_r]
 
-def rdf(r,rho,kBT=1.0,u=uhs,params=1.0,model='PY'):
-    [g_r,c_r] = PyOZ(r,rho,kBT,u,params,model)
-    return g_r
+    def set_closure(self, closure: str = 'PY'):
+        if closure not in ('PY', 'HNC'):
+            raise ValueError("Closure must be 'PY' or 'HNC'")
+        self.closure = closure
 
-def dcf(r,rho,kBT=1.0,u=uhs,params=1.0,model='PY'):
-    [g_r,c_r] = PyOZ(r,rho,kBT,u,params,model)
-    return c_r
+    def _closure_relation(self, gamma: torch.Tensor, r: torch.Tensor) -> torch.Tensor:
+        """Compute c(r) from gamma(r) using the selected closure."""
+        beta_u = self.u(r, self.params) / self.kBT
+        if self.closure == 'PY':
+            b_r = torch.log1p(gamma) - gamma
+        else:  # HNC
+            b_r = 0.0
+        return torch.exp(-beta_u + gamma + b_r) - gamma - 1
+
+    def solve(self, rho: float, kBT: float = 1.0, rmax: float = 5.0, dr: float = 0.01, max_iter: int = 1000, method: str = 'Anderson', mix_depth: int = 5, alpha: float = 0.6, atol: float = 1e-6, logoutput: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Solve the Ornstein-Zernike equation for a given radial grid r.
+        Returns (r, h_r, c_r).
+        """
+        self.rho = rho
+        self.kBT = kBT
+
+        Npts = int(rmax / dr)
+        dk = np.pi / (Npts * dr)
+        i = torch.arange(Npts, device=self.device, dtype=self.dtype)
+        r = (i + 0.5) * dr  # avoid r=0 to prevent singularity
+        k = (i + 0.5) * dk
+
+        # initial outer functions
+        gamma_r = torch.zeros_like(r, device=self.device)
+
+        # Anderson mixer
+        if method == 'Anderson':
+            mixer = AndersonMix(m=mix_depth, alpha=alpha)
+        else:
+            mixer = PicardMix(alpha=alpha)
+
+        for it in range(1, max_iter + 1):
+            # closure
+            c_r = self._closure_relation(gamma_r, r)
+            # OZ in k-space
+            c_k = hankel_forward(c_r, r, k, dr)
+            # test if rho*ck is smaller than 1 to avoid divergence using clamp
+            denominator = 1.0 / (1.0 - self.rho * c_k)
+            denominator = torch.clamp(denominator, min=0.0, max=1e9)
+            gamma_k = self.rho * c_k * c_k  * denominator
+            # back to r-space
+            gamma_new = hankel_inverse(gamma_k, r, k, dk)  # inverse DST-I normalization
+
+            # testing convergence
+            residue = gamma_new - gamma_r
+            err = torch.sqrt(dr*torch.pow(residue, 2.0).sum()) / atol
+
+            if logoutput and it % 100 == 0:
+                print(f"Iter {it}: error={err.item():.2e}")
+            if err < 1.0 and it > mix_depth:
+                break
+
+            # mixing
+            gamma_r[:] = mixer.update(gamma_new, gamma_r)
+
+        self.Niter = it # store the number of iterations
+        
+        c_r = self._closure_relation(gamma_r, r)
+        h_r = gamma_r + c_r
+        return r, h_r, c_r
